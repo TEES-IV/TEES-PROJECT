@@ -13,28 +13,31 @@ import com.labcomu.edu.configuration.EduProperties;
 import com.labcomu.edu.exceptions.ResponseGatewayException;
 import com.labcomu.edu.resource.Organization;
 
+import io.github.resilience4j.ratelimiter.annotation.RateLimiter;
+
 @Component
 @Validated
 public class OrgGateway {
-    private final String fetchOrganizationUrl;
+	private final String fetchOrganizationUrl;
 
-    private final WebClient.Builder webClientBuilder;
+	private final WebClient.Builder webClientBuilder;
 
-    public OrgGateway(final WebClient.Builder webClientBuilder,
-            final EduProperties properties) {
-        this.webClientBuilder = webClientBuilder;
-        this.fetchOrganizationUrl = properties.getUrl().getFetchOrganizationDetails();
-    }
+	public OrgGateway(final WebClient.Builder webClientBuilder, final EduProperties properties) {
+		this.webClientBuilder = webClientBuilder;
+		this.fetchOrganizationUrl = properties.getUrl().getFetchOrganizationDetails();
+	}
 
-    public Organization getOrganization(@NotNull final String url) throws ResponseGatewayException {
-    	try {
-	        return webClientBuilder.build()
-	                .get().uri(fetchOrganizationUrl, url)
-	                .accept(MediaType.APPLICATION_JSON)
-	                .retrieve().bodyToMono(Organization.class).block();
-    	}
-        catch(WebClientResponseException e) {
-        	throw new ResponseGatewayException("Serviço indisponível", HttpStatus.SERVICE_UNAVAILABLE);
-        }
-    }
+	private Organization localCacheFlightSearch(Exception e) {
+		return new Organization();
+	}
+
+	@RateLimiter(name = "delayOrgService", fallbackMethod = "localCacheFlightSearch")
+	public Organization getOrganization(@NotNull final String url) throws ResponseGatewayException {
+		try {
+			return webClientBuilder.build().get().uri(fetchOrganizationUrl, url).accept(MediaType.APPLICATION_JSON)
+					.retrieve().bodyToMono(Organization.class).block();
+		} catch (WebClientResponseException e) {
+			throw new ResponseGatewayException("Serviço indisponível", HttpStatus.SERVICE_UNAVAILABLE);
+		}
+	}
 }

@@ -16,6 +16,12 @@ spring:
   application:
     name: edu-service
 
+resilience4j:
+  ratelimiter:
+    instances:
+      delayOrgService:
+        timeoutDuration: 3s
+
 app:
   gateways:
     orcid:
